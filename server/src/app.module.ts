@@ -4,8 +4,8 @@ import { AppService } from './app.service';
 import { DrizzlePostgresModule } from '@knaadh/nestjs-drizzle-postgres';
 import { UsersModule } from './users/users.module';
 import { MessagesModule } from './messages/messages.module';
+import { RoomsModule } from './rooms/rooms.module';
 import { MessagesService } from './messages/messages.service';
-import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -17,6 +17,7 @@ import { MessagesModule } from './messages/messages.module';
     }),
     UsersModule,
     MessagesModule,
+    RoomsModule,
   ],
   controllers: [AppController],
   providers: [AppService, MessagesService],

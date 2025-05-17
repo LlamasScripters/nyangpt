@@ -18,8 +18,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "migrate:dev": "drizzle-kit generate",
-    "migrate:prod": "drizzle-kit migrate --env=prod"
+    "db:generate:dev": "drizzle-kit generate --config=drizzle-dev.config.ts",
+    "db:generate:prod": "drizzle-kit generate --config=drizzle-prod.config.ts",
+    "db:migrate:dev": "drizzle-kit migrate --config=drizzle-dev.config.ts",
+    "db:migrate:prod": "drizzle-kit migrate --config=drizzle-prod.config.ts"
   },
   "dependencies": {
     "@knaadh/nestjs-drizzle-postgres": "^1.2.0",

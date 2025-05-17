@@ -1,41 +1,30 @@
 services:
   postgres:
     image: postgres:17.4
-    container_name: nest-chat-postgres
+    container_name: nyangpt-postgres
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: nest_chat
+      POSTGRES_DB: nyangpt
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    networks:
-      - nest-chat-network
 
   api:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: nest-chat-api
+    container_name: nyangpt-api
     ports:
       - "3000:3000"
     depends_on:
       - postgres
     environment:
-      PG_USERNAME: postgres
-      PGPASSWORD: postgres
-      
-    networks:
-      - nest-chat-network
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/nyangpt
     volumes:
-      - ./:/app
-      - /app/node_modules
+      - ./server:/app
     command: npm run start:dev
-
-networks:
-  nest-chat-network:
-    driver: bridge
 
 volumes:
   postgres-data:
