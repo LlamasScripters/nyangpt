@@ -3,8 +3,8 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
-import { hash } from 'bcrypt';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { PostgresError } from 'postgres';
@@ -12,16 +12,26 @@ import * as schema from '../db/schema';
 import { User, users } from '../db/schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PasswordUtils } from '../utils/password.utils';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @Inject('DB_DEV') private readonly db: NodePgDatabase<typeof schema>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<Omit<User, 'password'>> {
     try {
-      const hashedPassword = await hash(createUserDto.password, 10);
+      this.logger.log(
+        `Création d'un nouvel utilisateur: ${createUserDto.username}`,
+      );
+
+      // remplacement de bcrypt par PasswordUtils car ça fait crasher le back
+      const hashedPassword = PasswordUtils.hash(createUserDto.password);
+
+      this.logger.debug('Mot de passe haché avec succès');
 
       const [newUser] = await this.db
         .insert(users)
@@ -38,37 +48,69 @@ export class UsersService {
           updatedAt: users.updatedAt,
         });
 
+      this.logger.log(`Utilisateur créé avec succès: ${newUser.username}`);
       return newUser;
-    } catch (error) {
-      // Handle unique constraint violations
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorStack = error instanceof Error ? error.stack : '';
+
+      this.logger.error(
+        `Erreur lors de la création de l'utilisateur: ${errorMessage}`,
+        errorStack,
+      );
+
       if (error instanceof PostgresError && error.code === '23505') {
-        throw new ConflictException('Username or email already taken');
+        throw new ConflictException("Nom d'utilisateur ou email déjà utilisé");
       }
       throw error;
     }
   }
 
   async findAll(): Promise<Omit<User, 'password'>[]> {
-    return this.db.query.users.findMany({
-      columns: {
-        password: false,
-      },
-    });
+    try {
+      return this.db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          color: users.color,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorStack = error instanceof Error ? error.stack : '';
+
+      this.logger.error(
+        `Erreur lors de la récupération des utilisateurs: ${errorMessage}`,
+        errorStack,
+      );
+      return [];
+    }
   }
 
   async findOne(id: string): Promise<Omit<User, 'password'>> {
-    const user = await this.db.query.users.findFirst({
-      where: eq(users.id, id),
-      columns: {
-        password: false,
-      },
-    });
+    const user = await this.db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        color: users.color,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
 
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+    if (!user.length) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    return user;
+    return user[0];
   }
 
   async update(
@@ -95,13 +137,21 @@ export class UsersService {
         });
 
       if (!updatedUser) {
-        throw new NotFoundException(`User with ID ${id} not found`);
+        throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
       }
 
       return updatedUser;
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorStack = error instanceof Error ? error.stack : '';
+
+      this.logger.error(
+        `Erreur lors de la mise à jour de l'utilisateur: ${errorMessage}`,
+        errorStack,
+      );
       if (error instanceof PostgresError && error.code === '23505') {
-        throw new ConflictException('Username or email already taken');
+        throw new ConflictException("Nom d'utilisateur ou email déjà utilisé");
       }
       throw error;
     }
@@ -121,21 +171,52 @@ export class UsersService {
       });
 
     if (!deletedUser) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
     return deletedUser;
   }
 
   async findByUsername(username: string): Promise<User> {
-    const user = await this.db.query.users.findFirst({
-      where: eq(users.username, username),
-    });
+    const result = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.username, username))
+      .limit(1);
 
-    if (!user) {
-      throw new NotFoundException(`User with username ${username} not found`);
+    if (!result.length) {
+      throw new NotFoundException(
+        `Utilisateur avec le nom d'utilisateur ${username} non trouvé`,
+      );
     }
 
-    return user;
+    return result[0];
+  }
+
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    try {
+      const hashedPassword = PasswordUtils.hash(newPassword);
+
+      await this.db
+        .update(users)
+        .set({
+          password: hashedPassword,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .execute();
+
+      this.logger.log(`Mot de passe mis à jour pour l'utilisateur ${userId}`);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorStack = error instanceof Error ? error.stack : '';
+
+      this.logger.error(
+        `Erreur lors de la mise à jour du mot de passe: ${errorMessage}`,
+        errorStack,
+      );
+      throw error;
+    }
   }
 }

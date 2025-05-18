@@ -30,26 +30,33 @@ export class RoomsService {
       return newRoom;
     } catch (error) {
       if (error instanceof PostgresError && error.code === '23505') {
-        throw new ConflictException('Room name already taken');
+        throw new ConflictException('Nom de salle déjà pris');
       }
       throw error;
     }
   }
 
   async findAll(): Promise<Room[]> {
-    return this.db.query.rooms.findMany();
+    try {
+      return this.db.select().from(rooms);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des salles:', error);
+      return [];
+    }
   }
 
   async findOne(id: string): Promise<Room> {
-    const room = await this.db.query.rooms.findFirst({
-      where: eq(rooms.id, id),
-    });
+    const room = await this.db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, id))
+      .limit(1);
 
-    if (!room) {
-      throw new NotFoundException(`Room with ID ${id} not found`);
+    if (!room.length) {
+      throw new NotFoundException(`Salle avec l'ID ${id} non trouvée`);
     }
 
-    return room;
+    return room[0];
   }
 
   async update(id: string, updateRoomDto: UpdateRoomDto): Promise<Room> {
@@ -65,13 +72,13 @@ export class RoomsService {
         .returning();
 
       if (!updatedRoom) {
-        throw new NotFoundException(`Room with ID ${id} not found`);
+        throw new NotFoundException(`Salle avec l'ID ${id} non trouvée`);
       }
 
       return updatedRoom;
     } catch (error) {
       if (error instanceof PostgresError && error.code === '23505') {
-        throw new ConflictException('Room name already taken');
+        throw new ConflictException('Nom de salle déjà pris');
       }
       throw error;
     }
@@ -84,21 +91,23 @@ export class RoomsService {
       .returning();
 
     if (!deletedRoom) {
-      throw new NotFoundException(`Room with ID ${id} not found`);
+      throw new NotFoundException(`Salle avec l'ID ${id} non trouvée`);
     }
 
     return deletedRoom;
   }
 
   async findByName(name: string): Promise<Room> {
-    const room = await this.db.query.rooms.findFirst({
-      where: eq(rooms.name, name),
-    });
+    const room = await this.db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.name, name))
+      .limit(1);
 
-    if (!room) {
-      throw new NotFoundException(`Room with name ${name} not found`);
+    if (!room.length) {
+      throw new NotFoundException(`Salle avec le nom ${name} non trouvée`);
     }
 
-    return room;
+    return room[0];
   }
 }

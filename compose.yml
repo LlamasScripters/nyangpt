@@ -10,6 +10,14 @@ services:
       POSTGRES_DB: nyangpt
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nyangpt-network
+
 
   api:
     build:
@@ -19,12 +27,41 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/nyangpt
+      PORT: 3000
+      NODE_ENV: "${NODE_ENV}"
     volumes:
       - ./server:/app
+      - /app/node_modules
     command: npm run start:dev
+    networks:
+      - nyangpt-network
+
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: nyangpt-client
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: http://api:3000
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    networks:
+      - nyangpt-network
 
 volumes:
   postgres-data:
+
+networks:
+  nyangpt-network:
+    driver: bridge

@@ -1,25 +1,27 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DrizzlePostgresModule } from '@knaadh/nestjs-drizzle-postgres';
 import { UsersModule } from './users/users.module';
 import { MessagesModule } from './messages/messages.module';
 import { RoomsModule } from './rooms/rooms.module';
-import { MessagesService } from './messages/messages.service';
+import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
-    DrizzlePostgresModule.register({
-      tag: 'DB_DEV',
-      postgres: {
-        url: 'postgres://localhost:5432/nyangpt',
-      },
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
     }),
+    DatabaseModule, // Importez DatabaseModule avant les autres modules
     UsersModule,
     MessagesModule,
     RoomsModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, MessagesService],
+  providers: [AppService],
 })
 export class AppModule {}
